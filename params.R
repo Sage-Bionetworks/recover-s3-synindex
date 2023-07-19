@@ -19,12 +19,3 @@ SYNAPSE_PARENT_ID = 'syn51714264'
 
 SYNAPSE_FILEVIEW_ID = 'syn51406705'
 # Synapse ID of the file view containing list of all currently indexed S3 objects in Synapse
-
-PARQUET_BUCKET <- 'recover-processed-data'
-# S3 bucket containing the post-ETL parquet datasets
-
-PARQUET_FILEVIEW_ID <- 'syn52047601'
-# synID of the file view containing a list of all currently indexed S3 objects from the parquet bucket folder in Synapse
-
-AWS_PARQUET_DOWNLOAD_LOCATION <- './temp_aws_parquet'
-# Local location where parquet bucket files are synced to
