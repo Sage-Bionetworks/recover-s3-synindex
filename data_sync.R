@@ -14,7 +14,7 @@ library('synapser')
 # synapser::synLogin(daemon_acc, daemon_acc_password) # login into Synapse
 synapser::synLogin()
 
-sts_token <- synapser::synGetStsStorageToken(entity = 'syn52293299', # sts enabled destination folder
+sts_token <- synapser::synGetStsStorageToken(entity = 'syn52318272', # sts enabled destination folder
                                              permission = 'read_write',  
                                              output_format = 'json')
 
@@ -53,7 +53,7 @@ localDirs <- list.dirs(path = AWS_DOWNLOAD_LOCATION, full.names = FALSE, recursi
 # synapser::synLogin(daemon_acc, daemon_acc_password) # login into Synapse
 synapser::synLogin()
 
-sts_token <- synapser::synGetStsStorageToken(entity = 'syn51714264', # sts enabled destination folder
+sts_token <- synapser::synGetStsStorageToken(entity = 'syn52318303', # sts enabled destination folder
                                              permission = 'read_write',  
                                              output_format = 'json')
 
@@ -81,7 +81,8 @@ s3SyncFromLocal(local_source = AWS_DOWNLOAD_LOCATION,
 ## This would depend on the how the data is organized in the main S3 INGRESS bucket
 FOLDERS_TO_SYNC_SYNAPSE <- c('adults_v1',
                              'pregnant_v1',
-                             'pediatric_v1') 
+                             'pediatric_v1',
+                             'pilot-data') 
 
 # When we create dataFileHandleId in synapse it will create some folders in the source S3 bucket
 # we don't need those
