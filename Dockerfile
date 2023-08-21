@@ -20,16 +20,13 @@ RUN curl -o /root/synapse_creds.sh https://raw.githubusercontent.com/Sage-Bionet
 
 RUN mkdir -p /root/.aws
 
-COPY config /root/.aws/config
+RUN curl -o /root/.aws/config https://raw.githubusercontent.com/Sage-Bionetworks-IT/service-catalog-ssm-access/main/config
 
 RUN sed -i -e "s|\"<PERSONAL_ACCESS_TOKEN>\"|\"\${AWS_SYNAPSE_TOKEN}\"\n|g" \
     -e "s|/absolute/path/to/synapse_creds.sh|/root/synapse_creds.sh|g" \
     /root/.aws/config
 
 CMD R -e "q()" \
-    && sed -i -e "s|\${AWS_SYNAPSE_TOKEN}|$AWS_SYNAPSE_TOKEN|g"\
-    -e "s|{{AWS_ACCESS_KEY_ID}}|$AWS_ACCESS_KEY_ID|g" \
-    -e "s|{{AWS_SECRET_ACCESS_KEY}}|$AWS_SECRET_ACCESS_KEY|g" \
-    -e "s|{{AWS_SESSION_TOKEN}}|$AWS_SESSION_TOKEN|g" \
+    && sed -i -e "s|\${AWS_SYNAPSE_TOKEN}|$AWS_SYNAPSE_TOKEN|g" \
     /root/.aws/config \
-    && Rscript ~/recover-s3-synindex/data_sync.R
+    && bash ~/recover-s3-synindex/ingress_pipeline.sh
