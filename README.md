@@ -48,7 +48,7 @@ Note: After setting this step, you should be able to run data_sync.R, i.e be abl
 ### Method 2: Running with Docker
 
 1. Pull the docker image with `docker pull ghcr.io/sage-bionetworks/recover-s3-synindex`
-2. Run a container with `docker run -e AWS_TOKEN=<aws-cli-token> -e SYNAPSE_AUTH_TOKEN=<synapse-auth-token> <image-name>`
+2. Run a container with `docker run -e AWS_SYNAPSE_TOKEN=<aws-cli-token> -e SYNAPSE_AUTH_TOKEN=<synapse-auth-token> <image-name>`
 3. If desired, setup a scheduled job (AWS Scheduled Jobs, cron, etc.) using the docker image (ghcr.io/sage-bionetworks/recover-s3-synindex) to run the pipeline at your desired frequency
 
 Note: Replace `<aws-cli-token>` and `<synapse-auth-token>` with the actual token values. When provisioning a Scheduled Job, `<aws-cli-token>` and `<synapse-auth-token>` should be specified in the `Secrets` and/or `EnvVars` fields of the provisioning settings page.
