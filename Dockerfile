@@ -5,7 +5,7 @@ RUN apt-get update -y && apt-get upgrade -y && apt-get install -y python3 python
 RUN python3 -m pip install --upgrade pip
 RUN pip install synapseclient
 
-RUN git clone -b update-docker-pipeline https://github.com/pranavanba/recover-s3-synindex /root/recover-s3-synindex
+RUN git clone https://github.com/Sage-Bionetworks/recover-s3-synindex.git /root/recover-s3-synindex
 RUN Rscript /root/recover-s3-synindex/install_requirements.R
 
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
