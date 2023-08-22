@@ -2,67 +2,111 @@
 ## Index S3 Objects in Synapse
 ################################
 
+## First run data_sync.R and generate_manifest.R in that order, before executing code below
+
+#############
+### Synapse credentials
+#############
+# Set the environment variables .Renviron file in your home folder. Refer to README for more details
+SYNAPSE_AUTH_TOKEN = Sys.getenv('SYNAPSE_AUTH_TOKEN')
+
 #############
 # Required functions and libraries
 #############
-library(tidyverse)
+library(magrittr)
 library(synapser)
+library(synapserutils)
 library(rjson)
-synapser::synLogin()
-source('awscli_utils.R')
+synapser::synLogin(authToken=SYNAPSE_AUTH_TOKEN)
+source('~/recover-s3-synindex/awscli_utils.R')
 
 #############
-# Parameters
+# Required Parameters
 #############
-source('params.R')
+source('~/recover-s3-synindex/params.R')
 
-#############
-# NOTE
-#############
-### First run data_sync.R and sync the S3 bucket to the local EC2 instance
+###########
+## Get a list of all files to upload and their synapse locations(parentId) 
+###########
+STR_LEN_AWS_DOWNLOAD_LOCATION = stringr::str_length(AWS_DOWNLOAD_LOCATION)
 
-#############
-# Get bucket params and file list
-#############
-## Get a list of all Objects in the PRE_ETL S3 bucket 
-s3lsBucketObjects(source_bucket = paste0('s3://', PRE_ETL_BUCKET,'/'),
-                  output_file = FILE_LIST_OUTPUT)
+## All files present locally from manifest
+synapse_manifest <- read.csv('./current_manifest.tsv', sep = '\t', stringsAsFactors = F) %>% 
+  dplyr::filter(path != paste0(AWS_DOWNLOAD_LOCATION,'owner.txt')) %>%  # need not create a dataFileHandleId for owner.txt
+  dplyr::rowwise() %>% 
+  dplyr::mutate(file_key = stringr::str_sub(string = path, start = STR_LEN_AWS_DOWNLOAD_LOCATION+1)) %>% # location of file from home folder of S3 bucket
+  dplyr::mutate(s3_file_key = paste0('main/', file_key)) %>% # the namespace for files in the S3 bucket is S3::bucket/main/
+  dplyr::mutate(md5_hash = as.character(tools::md5sum(path))) %>% 
+  dplyr::ungroup()
 
-# Get bucket params
-bucket_params <- list(uploadType='S3',
-                    concreteType='org.sagebionetworks.repo.model.project.ExternalS3StorageLocationSetting',
-                    bucket=SOURCE_BUCKET)
+## All currently indexed files in Synapse
+synapse_fileview <- synapser::synTableQuery(paste0('SELECT * FROM ', SYNAPSE_FILEVIEW_ID))$filepath %>% read.csv()
 
-# The above list is just to verify/reference, 
-# since we will replicate the structure locally
-# we will work with that
-
-## Get a list of all local files
-localFileList <- list.files(path = AWS_DOWNLOAD_LOCATION,
-                            all.files = TRUE, # get hidden files too
-                            recursive = TRUE, # get files inside sub-folders (if any)
-                            full.names = FALSE) # to get the directory path prepended to the file name
+## find those files that are not in the fileview - files that need to be indexed
+if (nrow(synapse_fileview)>0) {
+  synapse_manifest_to_upload <- 
+    synapse_manifest %>% 
+    dplyr::anti_join(
+      synapse_fileview %>% 
+        dplyr::select(parent = parentId,
+                      s3_file_key = dataFileKey,
+                      md5_hash = dataFileMD5Hex))
+} else {
+  synapse_manifest_to_upload <- synapse_manifest
+}
 
 #############
 # Index in Synapse
 #############
 ## For each file index it in Synapse given a parent synapse folder
-for(file_ in localFileList){
-  print(file_)
-  absolute_file_path <- tools::file_path_as_absolute(paste0(AWS_DOWNLOAD_LOCATION,'/',file_))
-  
-  temp_syn_obj <- synapser::synCreateExternalS3FileHandle(
-    bucket_name = bucket_params$bucket,
-    s3_file_key = file_, # 
-    file_path = absolute_file_path,
-    parent = SYNAPSE_PARENT_ID
-  )
-  
-  f <- File(dataFileHandleId=temp_syn_obj$id, 
-            parentId=SYNAPSE_PARENT_ID,
-            name = temp_syn_obj$fileName) ## set file name same as the one from realpath
-  
-  f <- synStore(f)
-  
+if(nrow(synapse_manifest_to_upload) > 0){ # there are some files to upload
+  for(file_number in seq(nrow(synapse_manifest_to_upload))){
+    
+    # file and related synapse parent id 
+    file_= synapse_manifest_to_upload$path[file_number]
+    parent_id = synapse_manifest_to_upload$parent[file_number]
+    s3_file_key = synapse_manifest_to_upload$s3_file_key[file_number]
+    # this would be the location of the file in the S3 bucket, in the local it is at {AWS_DOWNLOAD_LOCATION}/
+    
+    absolute_file_path <- tools::file_path_as_absolute(file_) # local absolute path
+    
+    temp_syn_obj <- synapser::synCreateExternalS3FileHandle(
+      bucket_name = PRE_ETL_BUCKET,
+      s3_file_key = s3_file_key, #
+      file_path = absolute_file_path,
+      parent = parent_id
+    )
+    
+    # synapse does not accept ':' (colon) in filenames, so replacing it with '_colon_'
+    new_fileName <- stringr::str_replace_all(temp_syn_obj$fileName, ':', '_colon_')
+    
+    f <- File(dataFileHandleId=temp_syn_obj$id,
+              parentId=parent_id,
+              name = new_fileName) ## set the new file name
+    
+    f <- synStore(f)
+    
+  }
 }
+
+#############
+# Rename folders with '_' to have '\' for eg., 'adults_v1' to 'adults\v1'
+# to match with the next sync from S3 bucket
+# This is to undo the renaming donw in data_sync.R
+#############
+# We will work with the locally replicated structure 
+# all folders inside the AWS_DOWNLOAD_LOCATION, i.e all folders at AWS_DOWNLOAD_LOCATION/
+localDirs <- list.dirs(path = AWS_DOWNLOAD_LOCATION, full.names = FALSE, recursive = FALSE) 
+
+# The folders are named as 'adults\v1', 'pregnant\v1' and 'pediatric\v1'. We want to remove the
+# '\' and replace it with '_'
+for(dir_ in localDirs){
+  dir_newName <- stringr::str_replace_all(dir_,'_',"\\\\")
+  # rename each folder
+  file.rename(paste0(AWS_DOWNLOAD_LOCATION,"/",dir_), paste0(AWS_DOWNLOAD_LOCATION,"/",dir_newName))
+}
+
+# Get newly renamed folders
+localDirs <- list.dirs(path = AWS_DOWNLOAD_LOCATION, full.names = FALSE, recursive = FALSE) 
+
 
